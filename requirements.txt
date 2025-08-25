@@ -3,3 +3,4 @@ flask-cors
 pyttsx3
 google-generativeai
 pywhatkit
+gunicorn
