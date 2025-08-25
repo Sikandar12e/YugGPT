@@ -2,14 +2,10 @@ import os
 import re
 import sys
 import json
-import time
-import webbrowser
 import subprocess
 from pathlib import Path
 from flask import Flask, request, jsonify
 from flask_cors import CORS
-
-# === TTS ===
 
 # === Gemini ===
 import google.generativeai as genai
@@ -33,17 +29,13 @@ else:
 app = Flask(__name__)
 CORS(app)
 
-#engine = pyttsx3.init()
-#engine.setProperty('rate', 165)
-
-#def speak(text: str):
-   # try:
-      #  engine.say(text)
-     #   engine.runAndWait()
-   # except Exception as e:
-      #  print("TTS error:", e)
+# ----- Dummy Speak (Render पर pyttsx3 नहीं चलता) -----
+def speak(text: str):
+    print("[TTS skipped]:", text)
 
 # ---------- Command Parsing ----------
+import webbrowser
+
 def open_youtube():
     webbrowser.open("https://www.youtube.com")
     return "यूट्यूब खोल रहा हूँ।"
@@ -111,9 +103,12 @@ def gemini_answer(prompt: str) -> str:
 COMMAND_PATTERNS = [
     (re.compile(r"youtube|यूट्यूब|www\.youtube\.com", re.I), lambda t: open_youtube()),
     (re.compile(r"browser|ब्राउज़र|वेब", re.I), lambda t: open_browser()),
-    (re.compile(r"(play|चल[ा-]ओ|गाना|song)(.*)", re.I), lambda t: play_on_youtube(re.sub(r'^(play|चल[ा-]ओ|गाना|song)\s*', '', t, flags=re.I))),
-    (re.compile(r"shutdown(.*)", re.I), lambda t: system_shutdown('confirm' in t.lower() or 'पुष्टि' in t.lower())),
-    (re.compile(r"restart|रीस्टार्ट|reboot", re.I), lambda t: system_restart('confirm' in t.lower() or 'पुष्टि' in t.lower())),
+    (re.compile(r"(play|चल[ा-]ओ|गाना|song)(.*)", re.I), 
+        lambda t: play_on_youtube(re.sub(r'^(play|चल[ा-]ओ|गाना|song)\s*', '', t, flags=re.I))),
+    (re.compile(r"shutdown(.*)", re.I), 
+        lambda t: system_shutdown('confirm' in t.lower() or 'पुष्टि' in t.lower())),
+    (re.compile(r"restart|रीस्टार्ट|reboot", re.I), 
+        lambda t: system_restart('confirm' in t.lower() or 'पुष्टि' in t.lower())),
     (re.compile(r"file|फ़ाइल|explorer", re.I), lambda t: open_file_explorer()),
 ]
 
@@ -121,10 +116,17 @@ def dispatch_command(text: str) -> str:
     for pat, fn in COMMAND_PATTERNS:
         if pat.search(text):
             return fn(text)
-    # else fallback to Gemini Q/A
     return gemini_answer(text)
 
 # ---------- Routes ----------
+@app.route("/", methods=["GET"])
+def home():
+    return jsonify({"ok": True, "service": "YugGPT Jarvis API"}), 200
+
+@app.route("/health", methods=["GET"])
+def health():
+    return "ok", 200
+
 @app.route("/command", methods=["POST"])
 def command():
     data = request.get_json(force=True) or {}
@@ -132,7 +134,6 @@ def command():
     if not user_text:
         return jsonify({"reply": "कृपया कोई कमांड या सवाल लिखें/बोलें।"})
     reply = dispatch_command(user_text.lower())
-    # also speak on server side
     try:
         speak(reply)
     except:
@@ -148,4 +149,4 @@ def say():
 
 if __name__ == "__main__":
     print("YugGPT-Jarvis backend चल रहा है: http://127.0.0.1:5000")
-    app.run(host="127.0.0.1", port=5000, debug=False)
+    app.run(host="0.0.0.0", port=5000, debug=False)
