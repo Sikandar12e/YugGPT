@@ -10,7 +10,6 @@ from flask import Flask, request, jsonify
 from flask_cors import CORS
 
 # === TTS ===
-import pyttsx3
 
 # === Gemini ===
 import google.generativeai as genai
@@ -34,15 +33,15 @@ else:
 app = Flask(__name__)
 CORS(app)
 
-engine = pyttsx3.init()
-engine.setProperty('rate', 165)
+#engine = pyttsx3.init()
+#engine.setProperty('rate', 165)
 
-def speak(text: str):
-    try:
-        engine.say(text)
-        engine.runAndWait()
-    except Exception as e:
-        print("TTS error:", e)
+#def speak(text: str):
+   # try:
+      #  engine.say(text)
+     #   engine.runAndWait()
+   # except Exception as e:
+      #  print("TTS error:", e)
 
 # ---------- Command Parsing ----------
 def open_youtube():
