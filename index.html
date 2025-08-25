@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="hi">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>YugGPT Jarvis — Hologram</title>
+  <link rel="shortcut icon" type="image/x-icon" href="assets/YugGPT.jpg"/>
+  <style>
+    :root{
+      --cyan:#00ffff;
+      --bg:#000000;
+      --glass:rgba(4, 242, 242, 0.08);
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%;}
+    body{
+      margin:0;
+      background: #000;
+      overflow:hidden;
+      font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+      color: var(--cyan);
+    }
+    canvas.bg{position:fixed;inset:0;width:100%;height:100%;z-index:0}
+    .hud{
+      position:fixed;inset:0;display:flex;align-items:center;justify-content:center;z-index:2;
+      pointer-events:none;
+    }
+    .ring{position:absolute;border-radius:50%;border:2px solid rgba(5, 249, 249, 0.35);animation:spin 18s linear infinite;}
+    .ring.r1{width:70vmin;height:70vmin;filter:drop-shadow(0 0 20px rgba(0,255,255,.6));}
+    .ring.r2{width:88vmin;height:88vmin;animation-duration:28s;opacity:.5}
+    .ring.r3{width:100vmin;height:100vmin;animation-duration:36s;opacity:.35}
+    @keyframes spin{to{transform:rotate(360deg)}}
+    .logo{
+      position:absolute; width:min(46vmin,520px); aspect-ratio:1/1; z-index:3;
+      filter: drop-shadow(0 0 30px rgba(0,255,255,.9));
+      animation: tilt 8s ease-in-out infinite;
+      pointer-events:none;
+    }
+    @keyframes tilt{
+      0%{ transform: rotateX(0deg) rotateY(0deg) }
+      50%{ transform: rotateX(8deg) rotateY(-8deg) }
+      100%{ transform: rotateX(0deg) rotateY(0deg) }
+    }
+    .dock{
+      position:fixed;left:50%;bottom:26px;transform:translateX(-50%);
+      background: linear-gradient(180deg, rgba(0,255,255,.12), rgba(0,255,255,.04));
+      border:1px solid rgba(0,255,255,.35);
+      border-radius:16px;padding:10px;
+      display:flex;gap:8px;align-items:center;z-index:4;
+      box-shadow:0 0 30px rgba(0,255,255,.2) inset, 0 0 30px rgba(0,255,255,.25);
+    }
+    .dock input{
+      width:min(60vw,560px);padding:12px 14px;background:transparent;color:var(--cyan);
+      border:1px solid rgba(0,255,255,.35);border-radius:12px;outline:none;
+    }
+    .dock button{
+      padding:12px 14px;border-radius:12px;border:1px solid rgba(0,255,255,.45);
+      color:#001b1b;background:var(--cyan);font-weight:700;cursor:pointer;
+    }
+    .dock .mic{background:transparent;color:var(--cyan);border-color:rgba(0,255,255,.35)}
+    .response{
+      position:fixed;left:50%;top:26px;transform:translateX(-50%);
+      width:min(84vw,1000px);min-height:60px;padding:12px 16px;
+      background:var(--glass);backdrop-filter: blur(6px);border:1px solid rgba(0,255,255,.35);
+      border-radius:14px;z-index:4; white-space:pre-wrap;
+      box-shadow: 0 0 30px rgba(0,255,255,.2) inset;
+    }
+  </style>
+</head>
+<body>
+  <canvas id="bg" class="bg"></canvas>
+
+  <div class="hud">
+    <div class="ring r1"></div>
+    <div class="ring r2"></div>
+    <div class="ring r3"></div>
+    <img class="logo.gif" src="assets/logo.gif" alt="YugGPT hologram"/>
+  </div>
+
+  <div class="response" id="output"><a style="color: rgb(124, 249, 7);">YogGPT</a></div>
+
+  <div class="dock">
+    <input id="input" placeholder="Ask Me anything YugGPT"/>
+    <button onclick="sendCommand()">Enter</button>
+    <button class="mic" id="micBtn"><img src="mic.svg" alt="">बोलें</button>
+  </div>
+
+<script>
+// ====== Particle background ======
+const c = document.getElementById('bg'); const ctx = c.getContext('2d');
+function size(){ c.width = innerWidth; c.height = innerHeight }
+addEventListener('resize', size); size();
+const P = Array.from({length: 140}, () => ({
+  x: Math.random()*c.width, y: Math.random()*c.height,
+  vx: (Math.random()-0.5)*1.2, vy: (Math.random()-0.5)*1.2, r: Math.random()*2+0.6
+}));
+function frame(){
+  ctx.clearRect(0,0,c.width,c.height);
+  ctx.globalCompositeOperation='lighter';
+  for(const p of P){
+    p.x+=p.vx; p.y+=p.vy;
+    if(p.x<0||p.x>c.width) p.vx*=-1;
+    if(p.y<0||p.y>c.height) p.vy*=-1;
+    ctx.beginPath(); ctx.arc(p.x,p.y,p.r,0,Math.PI*2); ctx.fillStyle='rgba(0,255,255,.7)'; ctx.fill();
+  }
+  requestAnimationFrame(frame);
+}
+frame();
+
+// ====== API ======
+async function sendCommand(text){
+  const input = document.getElementById('input');
+  const out = document.getElementById('output');
+  const q = (text || input.value || '').trim();
+  if(!q){ out.textContent = "कृपया कमांड लिखें।"; return; }
+  out.textContent = "सोच रहा हूँ…";
+  try{
+    const resp = await fetch("http://127.0.0.1:5000/command", {
+      method: "POST",
+      headers: {"Content-Type":"application/json"},
+      body: JSON.stringify({text: q})
+    });
+    const data = await resp.json();
+    out.textContent = data.reply || "कोई उत्तर नहीं मिला।";
+    // client side TTS too
+    try {
+      const utt = new SpeechSynthesisUtterance(data.reply || "");
+      utt.lang = "hi-IN";
+      speechSynthesis.speak(utt);
+    } catch(e){}
+  }catch(e){
+    out.textContent = "Backend से कनेक्शन नहीं हो पाया. पहले server.py चलाएँ.";
+  }
+}
+
+document.getElementById('input').addEventListener('keydown', e => {
+  if(e.key === 'Enter') sendCommand();
+});
+
+// ====== Voice (Web Speech API) ======
+document.getElementById('micBtn').addEventListener('click', () => {
+  try{
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if(!SR){ alert("यह ब्राउज़र voice recognition सपोर्ट नहीं करता (Chrome/Edge try करें)."); return; }
+    const rec = new SR();
+    rec.lang = "hi-IN";
+    rec.start();
+    rec.onresult = (ev) => {
+      const t = ev.results[0][0].transcript;
+      document.getElementById('input').value = t;
+      sendCommand(t);
+    };
+    rec.onerror = (ev) => {
+      document.getElementById('output').textContent = "Mic error: " + ev.error;
+    };
+  }catch(err){
+    alert("Mic start नहीं हो पाया: " + err.message);
+  }
+});
+</script>
+</body>
+</html>
